@@ -1,0 +1,102 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "KokonoePC Assembly",
+	"patterns": [
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#opcodes"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#labels"
+		},
+		{
+			"include": "#register"
+		},
+		{
+			"include": "#numerics"
+		},
+		{
+			"include": "#pointer"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.kokonoepc",
+					"begin": "\\.(?i:data|text|global|string|int8|int16|byte|word)",
+					"end": "\\b"
+				}
+			]
+		},
+		"opcodes": {
+			"patterns": [
+				{
+					"name": "keyword.control.kokonoepc",
+					"match": "\\b(return|nop|write|adc|sub|mlt|div|inc|dec|and|or|ssl|srl|rol|ror|cmp|jmp|jr|jal|beq|bne|bge|blt|clc|cln|clo|sec|sen|seo|push|pop)\\b"
+				}
+			]
+		},
+		"register": {
+			"patterns": [
+				{
+					"name": "constant.language.kokonoepc",
+					"match": "\\b(a|x|y|z)\\b"
+				}
+			]
+		},
+		"numerics": {
+			"patterns": [
+				{
+					"name": "constant.numeric.decimal.kokonoepc",
+					"match": "\\b\\d+\\b"
+				},
+				{
+					"name": "constant.numeric.hex.kokonoepc",
+					"match": "\\$[0-9A-Fa-f]+\\b"
+				},
+				{
+					"name": "constant.numeric.binary.kokonoepc",
+					"match": "\\bb[01]+\\b"
+				}
+			]
+		},
+		"labels": {
+			"patterns": [
+				{
+					"name": "entity.name.function.kokonoepc",
+					"match": "^\\s*(_[A-Za-z0-9_]+):"
+				},
+				{
+					"name": "entity.name.namespace.kokonoepc",
+					"match": "^\\s*([A-Za-z][A-Za-z0-9_]*):"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.kokonoepc",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.kokonoepc",
+					"match": "\\\\."
+				}
+			]
+		},
+		"pointer": {
+			"patterns": [
+				{
+					"name": "keyword.operator.kokonoepc",
+					"match": "\\*[A-Za-z_][A-Za-z0-9_]*"
+				}
+			]
+		}
+	},
+	"scopeName": "source.kasm"
+}

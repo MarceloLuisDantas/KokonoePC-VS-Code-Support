@@ -1,0 +1,67 @@
+.global *_main
+.text
+    _main:
+        nop
+        write x, y
+        write x, $10
+        write x, $1234
+        write y, $20
+        write y, $1234
+        write $30, $40
+        write $5678, $40
+        write $30, $1234
+        write $5678, $1234
+        write y, $7F
+        write y, $1234
+        adc y, z
+        adc y, $1234
+        adc $80, $1234
+        sub y, z
+        sub y, $1234
+        sub $80, $1234
+        mlt y, z
+        mlt y, $1234
+        mlt $90, $1234
+        div y, z
+        div y, $1234
+        div $90, $1234
+        inc y
+        inc $90
+        dec y
+        dec $90
+        and y, z
+        and y, b00011010
+        or y, z
+        or y, $1234
+        ssl y, 8
+        srl y, 8
+        rol y, 8
+        ror y, 8
+        cmp y, z
+        clc
+        cln
+        clo
+        sec
+        sen
+        seo
+        push
+        push $1234
+        pop
+        jmp *_after
+        jr y
+        jal *_call
+        beq *_after
+        bne *_after
+        bge *_after
+        blt *_after
+    _call:
+        return
+    _after:
+        nop
+    _done:
+        nop
+
+.data
+    value_1: .int8  231
+    value_2: .int16 12142
+    hello: .string "Hello World\0"
