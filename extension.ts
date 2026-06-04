@@ -139,7 +139,7 @@ function updateDiagnostics(
     // Undefined jumps
     //
     const jumpRegex =
-        /\b(jmp|jal|beq|bne|bge|blt)\s+\**([a-zA-Z_][a-zA-Z0-9_]*)/gm;
+        /\b(global|jmp|jal|beq|bne|bge|blt)\s+\**([a-zA-Z_][a-zA-Z0-9_]*)/gm;
 
     while ((match = jumpRegex.exec(text)) !== null) {
         const target = match[2];
@@ -187,7 +187,10 @@ export function activate(
         vscode.languages.registerCompletionItemProvider(
             "kokonoepc",
             {
-                provideCompletionItems(document) {
+                provideCompletionItems(
+                    document: vscode.TextDocument,
+                    position: vscode.Position
+                ) {
                     const items: vscode.CompletionItem[] = [];
 
                     const opcodes = [
@@ -201,15 +204,6 @@ export function activate(
                         "sec", "sen", "seo"
                     ];
 
-                    for (const opcode of opcodes) {
-                        items.push(
-                            new vscode.CompletionItem(
-                                opcode,
-                                vscode.CompletionItemKind.Keyword
-                            )
-                        );
-                    }
-
                     const directives = [
                         ".text",
                         ".data",
@@ -222,15 +216,59 @@ export function activate(
                         ".define"
                     ];
 
-                    for (const directive of directives) {
+                    const line =
+                        document.lineAt(position).text;
+
+                    const linePrefix =
+                        line.substring(0, position.character);
+
+                    const directiveMatch =
+                        linePrefix.match(/\.[A-Za-z]*$/);
+
+                    //
+                    // Opcodes
+                    //
+                    for (const opcode of opcodes) {
                         items.push(
                             new vscode.CompletionItem(
-                                directive,
-                                vscode.CompletionItemKind.Module
+                                opcode,
+                                vscode.CompletionItemKind.Keyword
                             )
                         );
                     }
 
+                    //
+                    // Directives
+                    //
+                    for (const directive of directives) {
+                        const item =
+                            new vscode.CompletionItem(
+                                directive,
+                                vscode.CompletionItemKind.Module
+                            );
+
+                        item.insertText = directive;
+
+                        if (directiveMatch) {
+                            const start =
+                                position.translate(
+                                    0,
+                                    -directiveMatch[0].length
+                                );
+
+                            item.range =
+                                new vscode.Range(
+                                    start,
+                                    position
+                                );
+                        }
+
+                        items.push(item);
+                    }
+
+                    //
+                    // Labels e Defines
+                    //
                     const parsed =
                         parseDocument(document);
 
@@ -254,10 +292,13 @@ export function activate(
 
                     return items;
                 }
-            }
+            },
+            "." // Trigger para diretivas
         );
 
-    context.subscriptions.push(completionProvider);
+    context.subscriptions.push(
+        completionProvider
+    );
 
     //
     // Diagnostics

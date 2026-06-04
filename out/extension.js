@@ -100,7 +100,7 @@ function updateDiagnostics(document, diagnostics) {
     //
     // Undefined jumps
     //
-    const jumpRegex = /\b(jmp|jal|beq|bne|bge|blt)\s+\**([a-zA-Z_][a-zA-Z0-9_]*)/gm;
+    const jumpRegex = /\b(global|jmp|jal|beq|bne|bge|blt)\s+\**([a-zA-Z_][a-zA-Z0-9_]*)/gm;
     while ((match = jumpRegex.exec(text)) !== null) {
         const target = match[2];
         if (!labels.has(target) &&
@@ -120,7 +120,7 @@ function activate(context) {
     // Completion
     //
     const completionProvider = vscode.languages.registerCompletionItemProvider("kokonoepc", {
-        provideCompletionItems(document) {
+        provideCompletionItems(document, position) {
             const items = [];
             const opcodes = [
                 "nop", "write", "adc", "sub",
@@ -132,9 +132,6 @@ function activate(context) {
                 "clc", "cln", "clo",
                 "sec", "sen", "seo"
             ];
-            for (const opcode of opcodes) {
-                items.push(new vscode.CompletionItem(opcode, vscode.CompletionItemKind.Keyword));
-            }
             const directives = [
                 ".text",
                 ".data",
@@ -146,9 +143,31 @@ function activate(context) {
                 ".word",
                 ".define"
             ];
-            for (const directive of directives) {
-                items.push(new vscode.CompletionItem(directive, vscode.CompletionItemKind.Module));
+            const line = document.lineAt(position).text;
+            const linePrefix = line.substring(0, position.character);
+            const directiveMatch = linePrefix.match(/\.[A-Za-z]*$/);
+            //
+            // Opcodes
+            //
+            for (const opcode of opcodes) {
+                items.push(new vscode.CompletionItem(opcode, vscode.CompletionItemKind.Keyword));
             }
+            //
+            // Directives
+            //
+            for (const directive of directives) {
+                const item = new vscode.CompletionItem(directive, vscode.CompletionItemKind.Module);
+                item.insertText = directive;
+                if (directiveMatch) {
+                    const start = position.translate(0, -directiveMatch[0].length);
+                    item.range =
+                        new vscode.Range(start, position);
+                }
+                items.push(item);
+            }
+            //
+            // Labels e Defines
+            //
             const parsed = parseDocument(document);
             for (const label of parsed.labels.keys()) {
                 items.push(new vscode.CompletionItem(label, vscode.CompletionItemKind.Reference));
@@ -158,7 +177,8 @@ function activate(context) {
             }
             return items;
         }
-    });
+    }, "." // Trigger para diretivas
+    );
     context.subscriptions.push(completionProvider);
     //
     // Diagnostics
