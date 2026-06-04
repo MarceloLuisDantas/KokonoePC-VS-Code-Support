@@ -3,6 +3,9 @@
 	"name": "KokonoePC Assembly",
 	"patterns": [
 		{
+			"include": "#comments"
+		},
+		{
 			"include": "#keywords"
 		},
 		{
@@ -22,14 +25,26 @@
 		},
 		{
 			"include": "#pointer"
+		},
+		{
+			"include": "#defines"
 		}
 	],
 	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.line.semicolon",
+					"begin": ";",
+					"end": "$"
+				}
+			]
+		},
 		"keywords": {
 			"patterns": [
 				{
-					"name": "keyword.control.kokonoepc",
-					"begin": "\\.(?i:data|text|global|string|int8|int16|byte|word)",
+					"name": "keyword.operator.new.kokonoepc",
+					"begin": "\\.(?i:define|data|text|global|string|int8|int16|byte|word)",
 					"end": "\\b"
 				}
 			]
@@ -70,11 +85,11 @@
 			"patterns": [
 				{
 					"name": "entity.name.function.kokonoepc",
-					"match": "^\\s*(_[A-Za-z0-9_]+):"
+					"match": "\\b(_[A-Za-z0-9_]+):"
 				},
 				{
 					"name": "entity.name.namespace.kokonoepc",
-					"match": "^\\s*([A-Za-z][A-Za-z0-9_]*):"
+					"match": "\\b([A-Za-z][A-Za-z0-9_]*):"
 				}
 			]
 		},
@@ -94,6 +109,14 @@
 				{
 					"name": "keyword.operator.kokonoepc",
 					"match": "\\*[A-Za-z_][A-Za-z0-9_]*"
+				}
+			]
+		},
+		"defines": {
+			"patterns": [
+				{
+					"name": "constant.language.kokonoepc",
+					"match": "(?<=\\.define\\s)[A-Z0-9_]+"
 				}
 			]
 		}

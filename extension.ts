@@ -1,71 +1,360 @@
 import * as vscode from 'vscode';
 
-export function activate(context: vscode.ExtensionContext) {
-    const provider = vscode.languages.registerCompletionItemProvider(
-        'kokonoepc', {
-        provideCompletionItems() {
-            const items: vscode.CompletionItem[] = [];
+interface ParsedDocument {
+    labels: Map<string, number>;
+    defines: Map<string, number>;
+}
 
-            const opcodes: [string, string][] = [
-                ["nop", "does nothingdoes nothing for 1 cycle"],
-                ["write", "writes X to Y"],
-                ["adc", "adds with carry"],
-                ["sub", "subtracts"],
-                ["mlt", "multiplies"],
-                ["div", "divides"],
-                ["inc", "increments [reg/mem]"],
-                ["dec", "decrements [reg/mem]"],
-                ["and", "logic and"],
-                ["or", "logic or"],
-                ["sll", "shift left logic"],
-                ["srl", "shift right logic"],
-                ["rol", "rotate left"],
-                ["ror", "rotate right"],
-                ["cmp", "compares"],
-                ["jmp", "jumps to addres"],
-                ["jr", "jumps to addres in reg"],
-                ["jal", "jump and link"],
-                ["beq", "branch if equals"],
-                ["bne", "branch if not equals"],
-                ["bge", "branch on greater or equal"],
-                ["blt", "branch on less than"],
-                ["push", "pushes [reg/mem] onto the stack"],
-                ["pop", "pops the value on top of stack"],
-                ["clc", "clears the carry flag"],
-                ["cln", "clears the negative flag"],
-                ["clo", "clears the overflow flag"],
-                ["sec", "sets the carry flag"],
-                ["sen", "sets the negative flag"],
-                ["seo", "sets the overflow flag"]
-            ];
+function parseDocument(
+    document: vscode.TextDocument
+): ParsedDocument {
+    const text = document.getText();
 
-            for (const opcode of opcodes) {
-                items.push(
-                    new vscode.CompletionItem(
-                        opcode[0],
-                        vscode.CompletionItemKind.Keyword
-                    )
-                );
-            }
+    const labels = new Map<string, number>();
+    const defines = new Map<string, number>();
 
-            const directives = [
-                ".text", ".data", ".global",
-                ".string", ".int8", ".int16",
-                ".byte", ".word"
-            ];
+    const labelRegex =
+        /([a-zA-Z_][a-zA-Z0-9_]*):/gm;
 
-            for (const directive of directives) {
-                items.push(
-                    new vscode.CompletionItem(
-                        directive,
-                        vscode.CompletionItemKind.Module
-                    )
-                );
-            }
+    const defineRegex =
+        /^\s*\.define\s+([A-Z_][A-Z0-9_]*)\s+(\d+|\$[0-9A-Fa-f]+|b[01]+)\s*$/gm;
 
-            return items;
+    let match: RegExpExecArray | null;
+
+    while ((match = labelRegex.exec(text)) !== null) {
+        labels.set(match[1], match.index);
+    }
+
+    while ((match = defineRegex.exec(text)) !== null) {
+        defines.set(match[1], match.index);
+    }
+
+    return {
+        labels,
+        defines
+    };
+}
+
+function updateDiagnostics(
+    document: vscode.TextDocument,
+    diagnostics: vscode.DiagnosticCollection
+) {
+    const text = document.getText();
+    const errors: vscode.Diagnostic[] = [];
+
+    const labelRegex =
+        /([a-zA-Z_][a-zA-Z0-9_]*):/gm;
+
+    const defineRegex =
+        /^\s*\.define\s+([A-Z_][A-Z0-9_]*)\s+(\d+|\$[0-9A-Fa-f]+|b[01]+)\s*$/gm;
+
+    const labels = new Map<string, number>();
+    const defines = new Map<string, number>();
+
+    let match: RegExpExecArray | null;
+
+    //
+    // Labels
+    //
+    while ((match = labelRegex.exec(text)) !== null) {
+        const name = match[1];
+
+        if (labels.has(name)) {
+            const range = new vscode.Range(
+                document.positionAt(match.index),
+                document.positionAt(match.index + name.length)
+            );
+
+            errors.push(
+                new vscode.Diagnostic(
+                    range,
+                    `Duplicate label '${name}'`,
+                    vscode.DiagnosticSeverity.Error
+                )
+            );
+        }
+
+        labels.set(name, match.index);
+    }
+
+    //
+    // Defines
+    //
+    while ((match = defineRegex.exec(text)) !== null) {
+        const name = match[1];
+
+        const start =
+            match.index +
+            match[0].indexOf(name);
+
+        const range = new vscode.Range(
+            document.positionAt(start),
+            document.positionAt(start + name.length)
+        );
+
+        if (defines.has(name)) {
+            errors.push(
+                new vscode.Diagnostic(
+                    range,
+                    `Duplicate define '${name}'`,
+                    vscode.DiagnosticSeverity.Error
+                )
+            );
+        }
+
+        if (labels.has(name)) {
+            errors.push(
+                new vscode.Diagnostic(
+                    range,
+                    `Define '${name}' conflicts with label '${name}'`,
+                    vscode.DiagnosticSeverity.Error
+                )
+            );
+        }
+
+        defines.set(name, start);
+    }
+
+    //
+    // Label x Define
+    //
+    for (const [name, pos] of labels) {
+        if (defines.has(name)) {
+            const range = new vscode.Range(
+                document.positionAt(pos),
+                document.positionAt(pos + name.length)
+            );
+
+            errors.push(
+                new vscode.Diagnostic(
+                    range,
+                    `Label '${name}' conflicts with define '${name}'`,
+                    vscode.DiagnosticSeverity.Error
+                )
+            );
         }
     }
+
+    //
+    // Undefined jumps
+    //
+    const jumpRegex =
+        /\b(jmp|jal|beq|bne|bge|blt)\s+\**([a-zA-Z_][a-zA-Z0-9_]*)/gm;
+
+    while ((match = jumpRegex.exec(text)) !== null) {
+        const target = match[2];
+
+        if (
+            !labels.has(target) &&
+            !defines.has(target)
+        ) {
+            const start =
+                match.index +
+                match[0].lastIndexOf(target);
+
+            const range = new vscode.Range(
+                document.positionAt(start),
+                document.positionAt(start + target.length)
+            );
+
+            errors.push(
+                new vscode.Diagnostic(
+                    range,
+                    `Undefined symbol '${target}'`,
+                    vscode.DiagnosticSeverity.Error
+                )
+            );
+        }
+    }
+
+    diagnostics.set(document.uri, errors);
+}
+
+export function activate(
+    context: vscode.ExtensionContext
+) {
+    const diagnostics =
+        vscode.languages.createDiagnosticCollection(
+            "kokonoepc"
+        );
+
+    context.subscriptions.push(diagnostics);
+
+    //
+    // Completion
+    //
+    const completionProvider =
+        vscode.languages.registerCompletionItemProvider(
+            "kokonoepc",
+            {
+                provideCompletionItems(document) {
+                    const items: vscode.CompletionItem[] = [];
+
+                    const opcodes = [
+                        "nop", "write", "adc", "sub",
+                        "mlt", "div", "inc", "dec",
+                        "and", "or", "sll", "srl",
+                        "rol", "ror", "cmp", "jmp",
+                        "jr", "jal", "beq", "bne",
+                        "bge", "blt", "push", "pop",
+                        "clc", "cln", "clo",
+                        "sec", "sen", "seo"
+                    ];
+
+                    for (const opcode of opcodes) {
+                        items.push(
+                            new vscode.CompletionItem(
+                                opcode,
+                                vscode.CompletionItemKind.Keyword
+                            )
+                        );
+                    }
+
+                    const directives = [
+                        ".text",
+                        ".data",
+                        ".global",
+                        ".string",
+                        ".int8",
+                        ".int16",
+                        ".byte",
+                        ".word",
+                        ".define"
+                    ];
+
+                    for (const directive of directives) {
+                        items.push(
+                            new vscode.CompletionItem(
+                                directive,
+                                vscode.CompletionItemKind.Module
+                            )
+                        );
+                    }
+
+                    const parsed =
+                        parseDocument(document);
+
+                    for (const label of parsed.labels.keys()) {
+                        items.push(
+                            new vscode.CompletionItem(
+                                label,
+                                vscode.CompletionItemKind.Reference
+                            )
+                        );
+                    }
+
+                    for (const define of parsed.defines.keys()) {
+                        items.push(
+                            new vscode.CompletionItem(
+                                define,
+                                vscode.CompletionItemKind.Constant
+                            )
+                        );
+                    }
+
+                    return items;
+                }
+            }
+        );
+
+    context.subscriptions.push(completionProvider);
+
+    //
+    // Diagnostics
+    //
+    if (
+        vscode.window.activeTextEditor &&
+        vscode.window.activeTextEditor.document.languageId ===
+        "kokonoepc"
+    ) {
+        updateDiagnostics(
+            vscode.window.activeTextEditor.document,
+            diagnostics
+        );
+    }
+
+    context.subscriptions.push(
+        vscode.workspace.onDidOpenTextDocument(
+            document => {
+                if (
+                    document.languageId ===
+                    "kokonoepc"
+                ) {
+                    updateDiagnostics(
+                        document,
+                        diagnostics
+                    );
+                }
+            }
+        )
     );
-    context.subscriptions.push(provider);
+
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeTextDocument(
+            event => {
+                if (
+                    event.document.languageId ===
+                    "kokonoepc"
+                ) {
+                    updateDiagnostics(
+                        event.document,
+                        diagnostics
+                    );
+                }
+            }
+        )
+    );
+
+    //
+    // Go To Definition
+    //
+    const definitionProvider =
+        vscode.languages.registerDefinitionProvider(
+            "kokonoepc",
+            {
+                provideDefinition(
+                    document,
+                    position
+                ) {
+                    const range =
+                        document.getWordRangeAtPosition(
+                            position
+                        );
+
+                    if (!range) {
+                        return null;
+                    }
+
+                    const word =
+                        document.getText(range);
+
+                    const parsed =
+                        parseDocument(document);
+
+                    if (parsed.labels.has(word)) {
+                        return new vscode.Location(
+                            document.uri,
+                            document.positionAt(
+                                parsed.labels.get(word)!
+                            )
+                        );
+                    }
+
+                    if (parsed.defines.has(word)) {
+                        return new vscode.Location(
+                            document.uri,
+                            document.positionAt(
+                                parsed.defines.get(word)!
+                            )
+                        );
+                    }
+
+                    return null;
+                }
+            }
+        );
+
+    context.subscriptions.push(
+        definitionProvider
+    );
 }

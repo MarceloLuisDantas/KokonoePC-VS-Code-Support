@@ -1,4 +1,9 @@
 .global *_main
+
+.define VALOR_DECIMAL 320
+.define VALOR_HEXADEC $1000
+.define VALOR_BINARIO b10101010
+
 .text
     _main:
         nop
@@ -21,7 +26,7 @@
         sub $80, $1234
         mlt y, z
         mlt y, $1234
-        mlt $90, $1234
+        mlt $90, $123A
         div y, z
         div y, $1234
         div $90, $1234
@@ -47,18 +52,23 @@
         push
         push $1234
         pop
-        jmp *_after
+        jmp VALOR_BINARIO
+        jmp VALOR_HEXADEC
+        jmp VALOR_BINARIO
         jr y
-        jal *_call
+        jal *_after
         beq *_after
         bne *_after
         bge *_after
         blt *_after
+        jmp *_main
     _call:
         return
     _after:
         nop
     _done:
+        nop
+    _END:
         nop
 
 .data
