@@ -77,7 +77,7 @@
 				},
 				{
 					"name": "constant.numeric.binary.kokonoepc",
-					"match": "\\bb[01]+\\b"
+					"match": "\\b%[01]+\\b"
 				}
 			]
 		},

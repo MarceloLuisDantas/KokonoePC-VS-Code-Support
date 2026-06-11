@@ -2,7 +2,7 @@
 
 .define VALOR_DECIMAL 320
 .define VALOR_HEXADEC $1000
-.define VALOR_BINARIO b10101010
+.define VALOR_BINARIO %10101010
 
 .text
     _main:
@@ -29,13 +29,14 @@
         mlt $90, $123A
         div y, z
         div y, $1234
-        div $90, $1234
+        div $90, $1A234
         inc y
         inc $90
         dec y
         dec $90
         and y, z
         and y, b00011010
+        and y, %00011010
         or y, z
         or y, $1234
         ssl y, 8
